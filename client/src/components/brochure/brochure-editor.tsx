@@ -2131,34 +2131,39 @@ export default function BrochureEditor({
                         className="h-9 w-16 p-1 border rounded"
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-600">Opacity</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={bgBaseAlpha}
-                        onChange={(e) =>
-                          setBgBaseAlpha(parseFloat(e.target.value))
-                        }
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        className="w-16 border rounded px-1 py-1 text-xs"
-                        value={bgBaseAlpha}
-                        onChange={(e) =>
-                          setBgBaseAlpha(
-                            Math.max(
-                              0,
-                              Math.min(1, parseFloat(e.target.value || "0"))
+                    <div className="space-y-1">
+                      <span className="block text-xs text-gray-600">
+                        Opacity
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          className="flex-1"
+                          value={bgBaseAlpha}
+                          onChange={(e) =>
+                            setBgBaseAlpha(parseFloat(e.target.value))
+                          }
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          className="w-16 border rounded px-1 py-1 text-xs"
+                          value={bgBaseAlpha}
+                          onChange={(e) =>
+                            setBgBaseAlpha(
+                              Math.max(
+                                0,
+                                Math.min(1, parseFloat(e.target.value || "0"))
+                              )
                             )
-                          )
-                        }
-                      />
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="mt-3">
