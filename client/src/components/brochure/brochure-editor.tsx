@@ -1782,7 +1782,7 @@ export default function BrochureEditor({
                             }}
                           >
                             {/* Fixed panel background inside, leaves a thin margin so price can hang past it */}
-                            <div className="absolute inset-1 bg-white/85 rounded-md shadow border " />
+                            <div className="absolute inset-1 bg-white/10 rounded-md shadow border " />
                             {/* Pure Product Image - Clean container */}
                             <div
                               className="relative flex items-center justify-center"
