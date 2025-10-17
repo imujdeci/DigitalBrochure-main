@@ -111,6 +111,7 @@ export default function BrochureEditor({
   // Style & template controls
   const [showSupermarketTemplate, setShowSupermarketTemplate] = useState(true);
   const [headerBgColor, setHeaderBgColor] = useState<string>("#f59e0b"); // amber-500
+  const [headerBgAlpha, setHeaderBgAlpha] = useState<number>(0.95); // header opacity
   const [bannerBgColor, setBannerBgColor] = useState<string>("#111827"); // gray-900
   const [bannerText, setBannerText] = useState<string>(
     "INDIRIMLI ALIŞVERİŞ REHBERİ"
@@ -294,36 +295,112 @@ export default function BrochureEditor({
     };
   };
 
-  // Fixed 3x3 grid geometry between banner and footer
-  const getFixedGridGeometry = (canvasWidth: number, canvasHeight: number) => {
-    const cols = 3;
-    const rows = 3;
+  // Adaptive grid geometry up to 20 items per page with deterministic 4x5 growth
+  const getAdaptiveGridGeometry = (
+    canvasWidth: number,
+    canvasHeight: number,
+    count: number
+  ) => {
+    const clampedCount = Math.max(1, Math.min(20, count));
     const marginX = 40;
     const gridTop = 120 + 44 + 16; // below banner
     const gridBottomOffset = 80 + 16; // above footer
+    const areaX = marginX;
+    const areaY = gridTop;
     const areaWidth = canvasWidth - 2 * marginX;
     const areaHeight = canvasHeight - gridTop - gridBottomOffset;
-    const gap = 14; // visual spacing between items
-    const cellWidthCandidate = (areaWidth - gap * (cols - 1)) / cols;
-    const cellHeightCandidate = (areaHeight - gap * (rows - 1)) / rows;
-    const cellSize = Math.floor(
-      Math.min(cellWidthCandidate, cellHeightCandidate)
-    );
-    const totalGridWidth = cols * cellSize + gap * (cols - 1);
-    const totalGridHeight = rows * cellSize + gap * (rows - 1);
-    const offsetX = marginX + Math.floor((areaWidth - totalGridWidth) / 2);
-    const offsetY = gridTop + Math.floor((areaHeight - totalGridHeight) / 2);
+    const gap = 14;
 
-    const cells = Array.from({ length: cols * rows }, (_, i) => {
-      const c = i % cols;
-      const r = Math.floor(i / cols);
-      return {
-        x: offsetX + c * (cellSize + gap),
-        y: offsetY + r * (cellSize + gap),
-      };
-    });
+    // Determine rows per column based on desired sequence to reach 4x5
+    const rowsPerColumn: number[] = [1]; // start with 1 column, 1 row
+    if (clampedCount >= 2) rowsPerColumn.push(1); // 2 columns
+    if (clampedCount >= 3) rowsPerColumn[0] = 2; // split left column
+    if (clampedCount >= 4) rowsPerColumn[1] = 2; // split right column
 
-    return { cols, rows, cellSize, cells, gap };
+    let remaining = Math.max(0, clampedCount - Math.min(4, clampedCount));
+    // Phase A: grow first two columns up to 5 rows with pattern [0,0,1,1,0,1]
+    const pattern = [0, 0, 1, 1, 0, 1];
+    let pi = 0;
+    while (
+      remaining > 0 &&
+      rowsPerColumn.length >= 2 &&
+      (rowsPerColumn[0] < 5 || rowsPerColumn[1] < 5)
+    ) {
+      const target = pattern[pi % pattern.length];
+      if (rowsPerColumn[target] < 5) {
+        rowsPerColumn[target] += 1;
+        remaining -= 1;
+      }
+      pi += 1;
+    }
+
+    // Phase B: add third column and fill to 5
+    if (remaining > 0 && rowsPerColumn.length < 3) {
+      rowsPerColumn.push(1);
+      remaining -= 1;
+    }
+    while (remaining > 0 && rowsPerColumn.length >= 3 && rowsPerColumn[2] < 5) {
+      rowsPerColumn[2] += 1;
+      remaining -= 1;
+    }
+
+    // Phase C: add fourth column and fill to 5
+    if (remaining > 0 && rowsPerColumn.length < 4) {
+      rowsPerColumn.push(1);
+      remaining -= 1;
+    }
+    while (remaining > 0 && rowsPerColumn.length >= 4 && rowsPerColumn[3] < 5) {
+      rowsPerColumn[3] += 1;
+      remaining -= 1;
+    }
+
+    // Clamp to max columns 4 and rows 5
+    const cols = Math.min(4, rowsPerColumn.length);
+    const finalRowsPerCol = rowsPerColumn
+      .slice(0, cols)
+      .map((r) => Math.min(5, r));
+
+    // Compute equal-width columns and equal-height rows within each column
+    const totalColGaps = gap * (cols - 1);
+    const colWidth = Math.floor((areaWidth - totalColGaps) / cols);
+    const startX =
+      areaX + Math.floor((areaWidth - (colWidth * cols + totalColGaps)) / 2);
+
+    type Cell = {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      innerWidth: number;
+      innerHeight: number;
+    };
+    const cells: Cell[] = [];
+    for (let c = 0; c < cols; c++) {
+      const colX = startX + c * (colWidth + gap);
+      const rowsInCol = finalRowsPerCol[c];
+      const totalRowGaps = gap * (rowsInCol - 1);
+      const rowHeight = Math.floor((areaHeight - totalRowGaps) / rowsInCol);
+      const colStartY =
+        areaY +
+        Math.floor((areaHeight - (rowHeight * rowsInCol + totalRowGaps)) / 2);
+      for (let r = 0; r < rowsInCol; r++) {
+        const cellX = colX;
+        const cellY = colStartY + r * (rowHeight + gap);
+        const width = Math.max(60, colWidth);
+        const height = Math.max(60, rowHeight);
+        const innerPad = 4;
+        cells.push({
+          x: cellX,
+          y: cellY,
+          width,
+          height,
+          innerWidth: Math.max(40, width - innerPad * 2),
+          innerHeight: Math.max(40, height - innerPad * 2),
+        });
+      }
+    }
+
+    return { cells, gap };
   };
 
   // Initialize product positions when selectedProducts change
@@ -349,7 +426,7 @@ export default function BrochureEditor({
               y: item.positionY,
             };
           } else {
-            // Place into fixed 3x3 grid by order within page
+            // Place into adaptive grid by order within page
             const pageNumber = item.pageNumber || 1;
             const pageProducts = selectedProducts.filter(
               (p) => (p.pageNumber || 1) === pageNumber
@@ -357,7 +434,11 @@ export default function BrochureEditor({
             const indexInPage = pageProducts.findIndex((p) => p.id === item.id);
             const canvasWidth = isDesignMode ? 400 : 600;
             const canvasHeight = isDesignMode ? 533 : 800;
-            const grid = getFixedGridGeometry(canvasWidth, canvasHeight);
+            const grid = getAdaptiveGridGeometry(
+              canvasWidth,
+              canvasHeight,
+              pageProducts.length
+            );
             const cellIndex = Math.min(indexInPage, grid.cells.length - 1);
             newGridIndex[item.id] = cellIndex;
             newPositions[item.id] = {
@@ -575,11 +656,11 @@ export default function BrochureEditor({
     }));
   };
 
-  // Automatically distribute products equally across pages
+  // Automatically distribute products up to 20 per page
   const distributeProductsAcrossPages = (numPages: number) => {
     const newPages: Record<number, number> = {};
     selectedProducts.forEach((item, index) => {
-      const targetPage = Math.floor(index / 9) + 1; // 9 per page
+      const targetPage = Math.floor(index / 20) + 1; // 20 per page
       newPages[item.id] = Math.min(targetPage, numPages);
     });
     setProductPages(newPages);
@@ -592,6 +673,15 @@ export default function BrochureEditor({
       distributeProductsAcrossPages(newPageCount);
     }
   };
+
+  // Ensure enough pages for 20 per page when product list changes
+  useEffect(() => {
+    const requiredPages = Math.max(1, Math.ceil(selectedProducts.length / 20));
+    if (requiredPages !== pages) {
+      setPages(requiredPages);
+      distributeProductsAcrossPages(requiredPages);
+    }
+  }, [selectedProducts.length]);
 
   const handleMouseMove = (e: React.MouseEvent, pageNumber?: number) => {
     const currentCanvas = e.currentTarget as HTMLDivElement;
@@ -702,7 +792,15 @@ export default function BrochureEditor({
       // Snap to nearest grid cell
       const canvasWidth = canvasRef.current?.clientWidth || 600;
       const canvasHeight = canvasRef.current?.clientHeight || 800;
-      const grid = getFixedGridGeometry(canvasWidth, canvasHeight);
+      const currentPage = productPages[draggedProductId] || 1;
+      const pageProducts = selectedProducts.filter(
+        (p) => (productPages[p.id] || 1) === currentPage
+      );
+      const grid = getAdaptiveGridGeometry(
+        canvasWidth,
+        canvasHeight,
+        pageProducts.length
+      );
       let nearestIndex = 0;
       let nearestDist = Number.MAX_VALUE;
       grid.cells.forEach((cell, idx) => {
@@ -715,7 +813,6 @@ export default function BrochureEditor({
         }
       });
       // Handle swap if cell is occupied on same page
-      const currentPage = productPages[draggedProductId] || 1;
       const occupant = selectedProducts.find(
         (p) =>
           (productPages[p.id] || 1) === currentPage &&
@@ -1372,9 +1469,11 @@ export default function BrochureEditor({
           >
             {Array.from({ length: pages }, (_, pageIndex) => {
               const pageNumber = pageIndex + 1;
-              const pageProducts = selectedProducts.filter(
-                (item) => (productPages[item.id] || 1) === pageNumber
-              );
+              const pageProducts = selectedProducts
+                .map((p, idx) => ({ p, idx }))
+                .filter(({ p }) => (productPages[p.id] || 1) === pageNumber)
+                .slice(0, 20)
+                .map(({ p }) => p);
 
               return (
                 <div
@@ -1473,7 +1572,7 @@ export default function BrochureEditor({
                           style={{
                             height: 120,
                             background: headerBgColor,
-                            opacity: 0.95,
+                            opacity: headerBgAlpha,
                           }}
                         />
                         {/* Banner strip */}
@@ -1512,7 +1611,7 @@ export default function BrochureEditor({
                           style={{
                             height: 80,
                             background: footerBgColor,
-                            opacity: 0.95,
+                            opacity: 0.2,
                           }}
                         />
                         {/* Footer content: address left, socials right */}
@@ -1703,11 +1802,12 @@ export default function BrochureEditor({
                       </div>
                     )}
 
-                    {/* Draggable Products - Fixed 3x3 grid between banner and footer */}
+                    {/* Draggable Products - Adaptive grid up to 20 per page */}
                     {pageProducts.map((item) => {
-                      const grid = getFixedGridGeometry(
+                      const grid = getAdaptiveGridGeometry(
                         isDesignMode ? 800 : 600,
-                        isDesignMode ? 1120 : 800
+                        isDesignMode ? 1120 : 800,
+                        pageProducts.length
                       );
                       const fallbackIndex = 0;
                       const cellIndex =
@@ -1777,8 +1877,8 @@ export default function BrochureEditor({
                           <div
                             className="relative inline-block overflow-hidden"
                             style={{
-                              width: `${grid.cellSize}px`,
-                              height: `${grid.cellSize}px`,
+                              width: `${grid.cells[cellIndex].width}px`,
+                              height: `${grid.cells[cellIndex].height}px`,
                             }}
                           >
                             {/* Fixed panel background inside, leaves a thin margin so price can hang past it */}
@@ -1787,8 +1887,8 @@ export default function BrochureEditor({
                             <div
                               className="relative flex items-center justify-center"
                               style={{
-                                width: `${grid.cellSize - 8}px`,
-                                height: `${grid.cellSize - 8}px`,
+                                width: `${grid.cells[cellIndex].innerWidth}px`,
+                                height: `${grid.cells[cellIndex].innerHeight}px`,
                                 transform: `rotate(${rotation}deg) scaleX(${scale.scaleX}) scaleY(${scale.scaleY})`,
                                 transition:
                                   isRotating || isResizing
@@ -2077,6 +2177,40 @@ export default function BrochureEditor({
                         onChange={(e) => setHeaderBgColor(e.target.value)}
                         className="h-9 w-16 p-1 border rounded"
                       />
+                      <div className="space-y-1 mt-2">
+                        <span className="block text-xs text-gray-600">
+                          Opacity
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            className="flex-1"
+                            value={headerBgAlpha}
+                            onChange={(e) =>
+                              setHeaderBgAlpha(parseFloat(e.target.value))
+                            }
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            className="w-16 border rounded px-1 py-1 text-xs"
+                            value={headerBgAlpha}
+                            onChange={(e) =>
+                              setHeaderBgAlpha(
+                                Math.max(
+                                  0,
+                                  Math.min(1, parseFloat(e.target.value || "0"))
+                                )
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
