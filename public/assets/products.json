@@ -1,0 +1,26 @@
+[
+  {
+    "id": 6,
+    "name": "domates",
+    "description": "lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet",
+    "originalPrice": 5,
+    "category": "Fashion",
+    "imageUrl": "/public/assets/domates_1762859970511.png"
+  },
+  {
+    "id": 7,
+    "name": "maydonoz",
+    "description": "lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet",
+    "originalPrice": 15,
+    "category": "Fashion",
+    "imageUrl": "/public/assets/maydonoz_1762859990784.png"
+  },
+  {
+    "id": 8,
+    "name": "Muz",
+    "description": "lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet",
+    "originalPrice": 10,
+    "category": "Home & Garden",
+    "imageUrl": "/public/assets/muz_1765265867338.png"
+  }
+]
